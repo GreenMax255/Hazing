@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>맵 에디터</title>
+<!-- game.html에서 쓰고 있던 것과 같은 픽셀 느낌 폰트를 가져옵니다 -->
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  /* ===== 전체 화면 기본 설정 ===== */
+  * {
+    box-sizing: border-box; /* padding이 크기 계산에 포함되도록 (레이아웃 깨짐 방지) */
+  }
+
+  body {
+    margin: 0; /* 브라우저 기본 여백 제거 */
+    height: 100vh; /* 화면 전체 높이 사용 */
+    /* title.html과 같은 계열의 따뜻한 색 대각선 줄무늬 배경 */
+    background: repeating-linear-gradient(
+      45deg,
+      #2b1d0f,
+      #2b1d0f 70px,
+      #241809 80px,
+      #241809 140px
+    );
+    color: #f3dd8a; /* 게임 로고 색과 맞춘 밝은 크림/골드 색 글자 */
+    font-family: 'Arial', sans-serif;
+    display: flex; /* 왼쪽 사이드바 + 오른쪽 작업영역을 가로로 배치 */
+    overflow: hidden; /* 스크롤바가 이상하게 생기는 것 방지 */
+  }
+
+  h2, h3 {
+    font-family: 'VT323', monospace; /* 제목은 게임과 같은 픽셀 폰트 사용 */
+    letter-spacing: 1px;
+    margin: 0 0 10px 0;
+  }
+
+  /* ===== 왼쪽 사이드바 (팔레트 + 버튼들) ===== */
+  #sidebar {
+    width: 300px; /* 사이드바 고정 너비 */
+    flex-shrink: 0; /* 창을 줄여도 사이드바 크기는 유지 */
+    background: #1a1208; /* 배경보다 더 진한 판넬 색 */
+    border-right: 3px solid #3b2a10;
+    padding: 20px;
+    overflow-y: auto; /* 내용이 길어지면 세로 스크롤 */
+    height: 100vh;
+  }
+
+  .section {
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #3b2a10; /* 구역을 나누는 얇은 선 */
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: #d8c199;
+  }
+
+  input[type="number"] {
+    width: 70px;
+    padding: 4px 6px;
+    background: #0d0904;
+    border: 1px solid #5a3d15;
+    color: #f3dd8a;
+    font-size: 14px;
+  }
+
+  button {
+    background: #3b2a10; /* game.html 버튼과 동일한 색 */
+    color: #f3dd8a;
+    border: 1px solid #5a3d15;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 0;
+  }
+
+  button:hover {
+    background: #5a3d15;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  /* ===== 타일 종류 선택 버튼들을 담는 영역 ===== */
+  #palette {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tile-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: #0d0904;
+    border: 2px solid transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .tile-btn.selected {
+    border-color: #f3dd8a; /* 현재 선택된 타일은 밝은 테두리로 강조 */
+  }
+
+  .swatch {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border: 1px solid #000;
+  }
+
+  .tile-label {
+    font-size: 14px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 160px;
+    background: #0d0904;
+    color: #a8f3a0; /* 코드 느낌이 나도록 초록빛 글자 */
+    border: 1px solid #5a3d15;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    resize: vertical;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: #a08a5f;
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* ===== 오른쪽 작업 영역 (그리드가 그려지는 곳) ===== */
+  #workspace {
+    flex-grow: 1; /* 남은 공간을 전부 차지 */
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  #statusbar {
+    padding: 10px 16px;
+    background: #1a1208;
+    border-bottom: 3px solid #3b2a10;
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    display: flex;
+    gap: 24px;
+  }
+
+  #canvasWrap {
+    flex-grow: 1;
+    overflow: auto; /* 맵이 화면보다 크면 스크롤로 이동 */
+    background: #100b05;
+  }
+
+  canvas {
+    display: block;
+    cursor: crosshair;
+  }
+</style>
+</head>
+<body>
+
+  <!-- ================= 왼쪽 사이드바 ================= -->
+  <div id="sidebar">
+
+    <div class="section">
+      <h2>맵 에디터</h2>
+      <p class="hint">칸을 클릭하거나 드래그해서 타일을 칠하세요. 오른쪽 클릭은 항상 지우개(0번)입니다.</p>
+    </div>
+
+    <div class="section">
+      <h3>1. 맵 크기</h3>
+      <label>가로 칸 수 (열)</label>
+      <input type="number" id="inputWidth" value="30" min="1" max="200">
+      <label style="margin-top:8px;">세로 칸 수 (행)</label>
+      <input type="number" id="inputHeight" value="20" min="1" max="200">
+      <br><br>
+      <button id="btnCreate">이 크기로 새로 만들기</button>
+      <p class="hint">주의: 새로 만들기를 누르면 지금 그린 맵은 사라집니다. 필요하면 먼저 내보내기로 저장해두세요.</p>
+    </div>
+
+    <div class="section">
+      <h3>2. 타일 종류 선택</h3>
+      <div id="palette"><!-- 자바스크립트가 버튼들을 여기에 자동으로 생성합니다 --></div>
+    </div>
+
+    <div class="section">
+      <h3>3. 화면 배율</h3>
+      <label>칸 크기 (px)</label>
+      <input type="number" id="inputCellSize" value="24" min="6" max="60">
+      <button id="btnZoomApply">적용</button>
+    </div>
+
+    <div class="section">
+      <h3>4. 기존 맵 불러오기</h3>
+      <p class="hint">game.html의 map 배열 전체(대괄호 포함)를 복사해서 아래에 붙여넣고 불러오기를 누르세요.</p>
+      <textarea id="importArea" placeholder="[ [0,0,1,...], [0,1,1,...], ... ]"></textarea>
+      <br><br>
+      <button id="btnImport">불러오기</button>
+    </div>
+
+    <div class="section">
+      <h3>5. 배열 코드로 내보내기</h3>
+      <button id="btnExport">현재 맵 내보내기</button>
+      <button id="btnCopy">복사하기</button>
+      <textarea id="exportArea" placeholder="여기에 결과가 나옵니다" readonly></textarea>
+    </div>
+
+  </div>
+
+  <!-- ================= 오른쪽 작업 영역 ================= -->
+  <div id="workspace">
+    <div id="statusbar">
+      <span id="statusSize">크기: -</span>
+      <span id="statusCursor">커서 좌표: -</span>
+      <span id="statusTile">칸의 값: -</span>
+      <span id="statusSelected">선택된 타일: -</span>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="mapCanvas"></canvas>
+    </div>
+  </div>
+
+<script>
+  // ===============================================================
+  // 이 파일은 game.html의 map 배열(2차원 숫자 배열)을 마우스로
+  // 편하게 그리고, 완성되면 코드 형태로 내보내주는 도구입니다.
+  // ===============================================================
+
+  // ---------- 1. 타일 종류 정의 ----------
+  // game.html에서 사용하는 숫자와 의미, 그리고 화면에 표시할 색을 정의합니다.
+  // 나중에 새로운 타일 종류가 생기면 이 배열에 한 줄만 추가하면 됩니다.
+  const TILE_TYPES = [
+    { value: 0, name: "0 : 빈 공간 (걸어다닐 수 있음)", color: "#3a3a3a" },
+    { value: 1, name: "1 : 벽 (bg_wall_01)",           color: "#8a6d3b" },
+    { value: 2, name: "2 : 창문 (bg_window)",           color: "#7fb3d5" },
+    { value: 3, name: "3 : 통나무벽2 (bg_logwall_02)",   color: "#5c4326" },
+    { value: 4, name: "4 : 문 (도어)",                   color: "#c97a3d" },
+    { value: 5, name: "5 : 출구/장식벽",                 color: "#4caf50" },
+  ];
+
+  // 지금 붓으로 칠할 타일 값. 기본값은 1번(벽)으로 시작합니다.
+  let selectedTile = 1;
+
+  // ---------- 2. 맵 데이터 상태 ----------
+  // mapData는 game.html의 map 배열과 똑같은 구조(행 배열의 배열)입니다.
+  let mapData = [];
+  let cols = 0; // 가로 칸 수
+  let rows = 0; // 세로 칸 수
+  let cellSize = 24; // 화면에서 칸 하나의 크기(px)
+
+  // ---------- 3. 화면 요소 가져오기 ----------
+  const canvas = document.getElementById("mapCanvas");
+  const ctx = canvas.getContext("2d");
+  const paletteDiv = document.getElementById("palette");
+  const statusSize = document.getElementById("statusSize");
+  const statusCursor = document.getElementById("statusCursor");
+  const statusTile = document.getElementById("statusTile");
+  const statusSelected = document.getElementById("statusSelected");
+
+  // ---------- 4. 빈 맵 만들기 함수 ----------
+  // 지정한 가로/세로 크기만큼 전부 0(빈 공간)으로 채워진 2차원 배열을 만듭니다.
+  function createEmptyMap(width, height) {
+    const newMap = []; // 결과로 반환할 빈 배열을 준비합니다.
+    for (let y = 0; y < height; y++) { // 세로(행) 방향으로 반복
+      const row = []; // 한 줄(행)을 담을 배열
+      for (let x = 0; x < width; x++) { // 가로(열) 방향으로 반복
+        row.push(0); // 일단 전부 0(빈 공간)으로 채웁니다.
+      }
+      newMap.push(row); // 완성된 한 줄을 전체 맵에 추가합니다.
+    }
+    return newMap; // 완성된 2차원 배열을 돌려줍니다.
+  }
+
+  // ---------- 5. 캔버스 크기를 맵 크기에 맞게 조정 ----------
+  function resizeCanvasToMap() {
+    canvas.width = cols * cellSize;  // 가로 칸 수 * 칸 크기 = 전체 캔버스 가로 길이
+    canvas.height = rows * cellSize; // 세로 칸 수 * 칸 크기 = 전체 캔버스 세로 길이
+  }
+
+  // ---------- 6. 맵을 화면에 그리는 함수 ----------
+  function drawMap() {
+    // 캔버스 전체를 지웁니다 (이전에 그린 내용 삭제).
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < rows; y++) {           // 모든 행에 대해
+      for (let x = 0; x < cols; x++) {         // 모든 열에 대해
+        const value = mapData[y][x];           // 이 칸의 타일 값(0~5)을 가져옴
+        const tileInfo = TILE_TYPES.find(t => t.value === value); // 값에 맞는 색 정보 찾기
+        ctx.fillStyle = tileInfo ? tileInfo.color : "#ff00ff"; // 정의 안 된 값이면 눈에 띄는 분홍색
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize); // 사각형 하나를 칠함
+      }
+    }
+
+    // 격자선을 그려서 칸 구분을 쉽게 보이도록 합니다.
+    ctx.strokeStyle = "rgba(255,255,255,0.08)"; // 아주 옅은 흰색 선
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= cols; x++) { // 세로 방향 격자선
+      ctx.beginPath();
+      ctx.moveTo(x * cellSize, 0);
+      ctx.lineTo(x * cellSize, rows * cellSize);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= rows; y++) { // 가로 방향 격자선
+      ctx.beginPath();
+      ctx.moveTo(0, y * cellSize);
+      ctx.lineTo(cols * cellSize, y * cellSize);
+      ctx.stroke();
+    }
+  }
+
+  // ---------- 7. 팔레트(타일 선택 버튼들) 만들기 ----------
+  function buildPalette() {
+    paletteDiv.innerHTML = ""; // 기존 버튼들을 비웁니다 (혹시 중복 생성 방지).
+
+    TILE_TYPES.forEach(tile => { // 정의해둔 타일 종류마다 버튼을 하나씩 만듭니다.
+      const btn = document.createElement("div"); // 버튼 역할을 할 div 생성
+      btn.className = "tile-btn" + (tile.value === selectedTile ? " selected" : "");
+
+      const swatch = document.createElement("div"); // 색상 견본 네모
+      swatch.className = "swatch";
+      swatch.style.background = tile.color;
+
+      const label = document.createElement("span"); // 타일 설명 글자
+      label.className = "tile-label";
+      label.textContent = tile.name;
+
+      btn.appendChild(swatch);
+      btn.appendChild(label);
+
+      // 이 버튼을 클릭하면 selectedTile을 이 타일 값으로 바꿉니다.
+      btn.addEventListener("click", () => {
+        selectedTile = tile.value;
+        statusSelected.textContent = "선택된 타일: " + tile.name;
+        buildPalette(); // 선택 테두리를 다시 그리기 위해 팔레트를 새로고침
+      });
+
+      paletteDiv.appendChild(btn);
+    });
+  }
+
+  // ---------- 8. 마우스 좌표 -> 칸(x, y) 좌표로 변환 ----------
+  function getCellFromEvent(e) {
+    const rect = canvas.getBoundingClientRect(); // 캔버스가 화면 어디에 있는지 위치 정보
+    const px = e.clientX - rect.left; // 캔버스 왼쪽 기준 마우스 x좌표(px)
+    const py = e.clientY - rect.top;  // 캔버스 위쪽 기준 마우스 y좌표(px)
+    const cellX = Math.floor(px / cellSize); // px을 칸 크기로 나눠서 몇 번째 칸인지 계산
+    const cellY = Math.floor(py / cellSize);
+    return { cellX, cellY };
+  }
+
+  // ---------- 9. 특정 칸에 타일 값을 칠하는 함수 ----------
+  function paintCell(cellX, cellY, value) {
+    // 맵 범위 밖이면 아무것도 하지 않습니다 (에러 방지).
+    if (cellY < 0 || cellY >= rows || cellX < 0 || cellX >= cols) return;
+    mapData[cellY][cellX] = value; // 실제 데이터 값을 바꿈
+    drawMap(); // 바뀐 내용을 화면에 다시 그림
+  }
+
+  // ---------- 10. 마우스 이벤트 연결 ----------
+  let isPainting = false; // 지금 마우스 버튼을 누른 채로 드래그 중인지 여부
+
+  canvas.addEventListener("mousedown", (e) => {
+    isPainting = true; // 드래그 칠하기 시작
+    const { cellX, cellY } = getCellFromEvent(e);
+    // 오른쪽 클릭(버튼 번호 2)이면 항상 지우개(0), 아니면 선택된 타일로 칠함
+    const valueToPaint = (e.button === 2) ? 0 : selectedTile;
+    paintCell(cellX, cellY, valueToPaint);
+  });
+
+  canvas.addEventListener("mousemove", (e) => {
+    const { cellX, cellY } = getCellFromEvent(e);
+
+    // 상태 표시줄에 현재 커서가 있는 칸의 좌표와 값을 보여줍니다.
+    // game.html의 doors/exits 좌표는 "칸 번호 + 0.5" 형태이므로 함께 표시해줍니다.
+    if (cellY >= 0 && cellY < rows && cellX >= 0 && cellX < cols) {
+      statusCursor.textContent = `커서 좌표: (${cellX}, ${cellY})  →  중심점: (${cellX + 0.5}, ${cellY + 0.5})`;
+      statusTile.textContent = "칸의 값: " + mapData[cellY][cellX];
+    }
+
+    // 마우스 버튼을 누른 채로 움직이는 중이면 지나가는 칸도 계속 칠합니다.
+    if (isPainting) {
+      const valueToPaint = (e.buttons === 2) ? 0 : selectedTile; // 드래그 중에도 오른쪽 버튼이면 지우개
+      paintCell(cellX, cellY, valueToPaint);
+    }
+  });
+
+  window.addEventListener("mouseup", () => {
+    isPainting = false; // 마우스 버튼을 떼면 드래그 칠하기 종료
+  });
+
+  // 오른쪽 클릭 시 브라우저 기본 메뉴가 뜨는 것을 막습니다 (지우개 기능을 위해 필요).
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  // ---------- 11. "이 크기로 새로 만들기" 버튼 ----------
+  document.getElementById("btnCreate").addEventListener("click", () => {
+    const w = parseInt(document.getElementById("inputWidth").value) || 10; // 입력값을 숫자로 변환, 비어있으면 10
+    const h = parseInt(document.getElementById("inputHeight").value) || 10;
+
+    cols = w;
+    rows = h;
+    mapData = createEmptyMap(cols, rows); // 새 빈 맵 생성
+    resizeCanvasToMap();
+    drawMap();
+    statusSize.textContent = `크기: 가로 ${cols} x 세로 ${rows}`;
+  });
+
+  // ---------- 12. 화면 배율(칸 크기) 적용 버튼 ----------
+  document.getElementById("btnZoomApply").addEventListener("click", () => {
+    cellSize = parseInt(document.getElementById("inputCellSize").value) || 24;
+    resizeCanvasToMap();
+    drawMap();
+  });
+
+  // ---------- 13. 배열을 텍스트로 바꿔주는 함수 (내보내기용) ----------
+  function mapToArrayText(data) {
+    // game.html과 똑같은 모양의 "const map = [ ... ];" 텍스트를 만듭니다.
+    let text = "const map = [\n"; // 시작 줄
+
+    data.forEach(row => { // 한 줄(행)씩 반복
+      text += "  [" + row.join(",") + "],\n"; // 숫자들을 쉼표로 이어붙여서 한 줄 완성
+    });
+
+    text += "];"; // 마지막 닫는 괄호
+    return text;
+  }
+
+  // ---------- 14. "현재 맵 내보내기" 버튼 ----------
+  document.getElementById("btnExport").addEventListener("click", () => {
+    const text = mapToArrayText(mapData); // 위에서 만든 함수로 텍스트 변환
+    document.getElementById("exportArea").value = text; // 내보내기 칸에 결과를 표시
+  });
+
+  // ---------- 15. "복사하기" 버튼 ----------
+  document.getElementById("btnCopy").addEventListener("click", () => {
+    const textarea = document.getElementById("exportArea");
+    textarea.select(); // 텍스트 영역의 내용을 전체 선택
+    navigator.clipboard.writeText(textarea.value) // 클립보드로 복사 시도
+      .then(() => alert("복사되었습니다! game.html에 붙여넣으세요."))
+      .catch(() => alert("복사에 실패했습니다. 직접 드래그해서 복사해주세요."));
+  });
+
+  // ---------- 16. 붙여넣은 텍스트에서 숫자 배열만 뽑아내는 함수 (불러오기용) ----------
+  function parseMapText(text) {
+    // "const map = [" 같은 앞부분 글자와 마지막 세미콜론(;)을 없애서
+    // 순수하게 대괄호와 숫자만 남도록 정리합니다.
+    let cleaned = text
+      .replace(/const\s+map\s*=/g, "") // "const map =" 글자 제거
+      .replace(/;/g, "");              // 세미콜론 제거
+
+    // [중요] game.html처럼 자바스크립트로 배열을 쓸 때는
+    //   [0,0,1],
+    //   [0,1,1],
+    // ];
+    // 이렇게 마지막 줄 끝에 쉼표(,)를 남겨놓아도 문제가 없습니다.
+    // 하지만 JSON.parse는 이런 "끝에 남는 쉼표(trailing comma)"를 허용하지 않아서
+    // 실제 game.html의 map 배열을 그대로 붙여넣으면 여기서 오류가 났었습니다.
+    // 그래서 JSON.parse에 넘기기 전에, "쉼표 + (공백/줄바꿈) + 닫는 대괄호]" 패턴을 찾아서
+    // 쉼표만 미리 제거해줍니다. (예: "0],\n  ]" -> "0]\n  ]")
+    cleaned = cleaned.replace(/,(\s*])/g, "$1");
+
+    // JSON.parse는 [1,2,3] 형태의 문자열을 실제 배열로 바꿔주는 표준 기능입니다.
+    // 다만 JSON은 문자열 앞뒤 공백에는 관대하므로 그대로 사용해도 안전합니다.
+    const parsed = JSON.parse(cleaned);
+    return parsed;
+  }
+
+  // ---------- 17. "불러오기" 버튼 ----------
+  document.getElementById("btnImport").addEventListener("click", () => {
+    const raw = document.getElementById("importArea").value.trim(); // 입력창의 글자 가져오기
+
+    if (!raw) { // 아무것도 안 붙여넣었으면
+      alert("먼저 맵 배열 텍스트를 붙여넣어주세요.");
+      return; // 함수를 여기서 끝냄
+    }
+
+    try {
+      const parsed = parseMapText(raw); // 문자열을 실제 배열로 변환 시도
+
+      mapData = parsed;              // 불러온 데이터를 현재 맵으로 사용
+      rows = mapData.length;         // 행 개수 = 세로 칸 수
+      cols = mapData[0].length;      // 첫 번째 행의 길이 = 가로 칸 수
+
+      // 입력창 숫자도 불러온 크기에 맞게 함께 업데이트합니다.
+      document.getElementById("inputWidth").value = cols;
+      document.getElementById("inputHeight").value = rows;
+
+      resizeCanvasToMap();
+      drawMap();
+      statusSize.textContent = `크기: 가로 ${cols} x 세로 ${rows}`;
+      alert("불러오기 완료! 이제 이어서 수정하실 수 있습니다.");
+    } catch (err) {
+      // 붙여넣은 텍스트 형식이 잘못되었을 때 알기 쉬운 에러 메세지를 보여줍니다.
+      alert("불러오기에 실패했습니다. 대괄호와 숫자, 쉼표로만 이루어진 배열인지 확인해주세요.");
+      console.error(err);
+    }
+  });
+
+  // ---------- 18. 페이지가 처음 열렸을 때 실행되는 초기화 ----------
+  buildPalette(); // 팔레트 버튼들 생성
+  cols = parseInt(document.getElementById("inputWidth").value); // 입력창 기본값(30) 읽기
+  rows = parseInt(document.getElementById("inputHeight").value); // 입력창 기본값(20) 읽기
+  mapData = createEmptyMap(cols, rows); // 기본 크기로 빈 맵 생성
+  resizeCanvasToMap();
+  drawMap();
+  statusSize.textContent = `크기: 가로 ${cols} x 세로 ${rows}`;
+  statusSelected.textContent = "선택된 타일: " + TILE_TYPES.find(t => t.value === selectedTile).name;
+</script>
+
+</body>
+</html>
