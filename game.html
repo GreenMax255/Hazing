@@ -252,68 +252,15 @@ const map = [
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 ];
 
-    
-    const doors = [
-      { x: 92.5,  y: 2.5,  open: false, dir: "horizontal" },
-      { x: 105.5, y: 2.5,  open: false, dir: "horizontal" },
-      { x: 58.5,  y: 6.5,  open: false, dir: "horizontal" },
-      { x: 80.5,  y: 6.5,  open: false, dir: "horizontal" },
-      { x: 109.5, y: 6.5,  open: false, dir: "vertical"   },
-      { x: 29.5,  y: 8.5,  open: false, dir: "vertical"   },
-      { x: 28.5,  y: 16.5, open: false, dir: "horizontal" },
-      { x: 109.5, y: 16.5, open: false, dir: "vertical"   }, 
-      { x: 40.5,  y: 22.5, open: false, dir: "vertical"   },
-      { x: 85.5,  y: 24.5, open: false, dir: "horizontal" },
-      { x: 109.5, y: 24.5, open: false, dir: "vertical"   },
-      { x: 111.5, y: 24.5, open: false, dir: "vertical"   }, 
-      { x: 58.5,  y: 30.5, open: false, dir: "horizontal" },
-      { x: 5.5,   y: 32.5, open: false, dir: "vertical"   },
-      { x: 109.5, y: 34.5, open: false, dir: "vertical"   },
-      { x: 109.5, y: 43.5, open: false, dir: "vertical"   }, 
-      { x: 58.5,  y: 45.5, open: false, dir: "horizontal" },
-      { x: 13.5,  y: 47.5, open: false, dir: "horizontal" },
-      { x: 70.5,  y: 47.5, open: false, dir: "horizontal" },
-      { x: 82.5,  y: 47.5, open: false, dir: "horizontal" },
-      { x: 95.5,  y: 47.5, open: false, dir: "horizontal" },
-      { x: 105.5, y: 47.5, open: false, dir: "horizontal" },
-      { x: 13.5,  y: 49.5, open: false, dir: "horizontal" },
-      { x: 66.5,  y: 49.5, open: false, dir: "horizontal" },
-      { x: 11.5,  y: 50.5, open: false, dir: "vertical"   },
-      { x: 11.5,  y: 55.5, open: false, dir: "vertical"   },
-      { x: 38.5,  y: 55.5, open: false, dir: "vertical"   },
-      { x: 40.5,  y: 55.5, open: false, dir: "vertical"   },
-      { x: 57.5,  y: 55.5, open: false, dir: "vertical"   }, 
-      { x: 59.5,  y: 55.5, open: false, dir: "vertical"   }, 
-      { x: 49.5,  y: 56.5, open: false, dir: "vertical"   },
-      { x: 74.5,  y: 58.5, open: false, dir: "vertical"   },
-      { x: 11.5,  y: 60.5, open: false, dir: "vertical"   }, 
-      { x: 45.5,  y: 62.5, open: false, dir: "horizontal" },
-      { x: 70.5,  y: 62.5, open: false, dir: "horizontal" }
-    ];
-
-    const exits = [
-      { x: 69.5, y: 5.5, block: false },
-      { x: 116.5, y: 24.5, block: false },
-      { x: 0.5, y: 32.5, block: false },
-      { x: 58.5, y: 64.5, block: false }
-    ];
-
-    
-    const doorMap = new Map();
-    doors.forEach(d => doorMap.set(`${Math.floor(d.x)},${Math.floor(d.y)}`, d));
-
-    const exitMap = new Map();
-    exits.forEach(e => exitMap.set(`${Math.floor(e.x)},${Math.floor(e.y)}`, e));
-
 
 // ==========================================================
-// [새로 추가한 기능] map 배열만 보고 문(4)과 출구(5) 위치를 자동으로 찾아내는 코드
-// 기존처럼 doors, exits 배열에 좌표를 손으로 직접 적지 않아도,
-// map 배열에 적힌 숫자만 보고 컴퓨터가 스스로 위치를 찾아줍니다.
+// [구조 변경] 이제부터는 문(door)과 출구(exit) 정보를
+// 사람이 손으로 배열에 적지 않고, map 배열만 보고 자동으로 만들어냅니다.
+// 맵 에디터로 맵을 새로 그릴 때마다 이 부분을 다시 손볼 필요가 없어집니다.
 // ==========================================================
 
 // 특정 좌표(x, y)의 칸이 "벽 종류(빈 바닥이 아닌 칸)"인지 확인해주는 도우미 함수입니다.
-// 예를 들어 옆 칸이 벽인지 아닌지 확인할 때 이 함수를 사용합니다.
+// 문이 가로 방향인지 세로 방향인지 판단할 때, 주변 칸이 벽인지 확인하는 용도로 씁니다.
 function isWallLikeCell(x, y) {
   // map[y]가 아예 존재하지 않으면(맵 범위를 벗어난 경우)
   const row = map[y];
@@ -335,8 +282,8 @@ function isWallLikeCell(x, y) {
   return cell !== 0;
 }
 
-// map 배열 전체를 훑으면서 값이 4(문)인 칸을 전부 찾아,
-// 기존 doors 배열과 똑같이 생긴 데이터를 자동으로 만들어주는 함수입니다.
+// map 배열 전체를 훑으면서 값이 4(문)인 칸을 전부 찾아서,
+// { x, y, open, dir } 형태의 문 데이터 목록을 자동으로 만들어주는 함수입니다.
 function generateDoorsFromMap() {
   // 찾아낸 문들을 담을 빈 배열을 준비합니다.
   const generatedDoors = [];
@@ -360,9 +307,8 @@ function generateDoorsFromMap() {
       const topIsWall = isWallLikeCell(x, y - 1);
       const bottomIsWall = isWallLikeCell(x, y + 1);
 
-      // 왼쪽/오른쪽이 벽으로 막혀있다면, 이 문이 박혀있는 벽은
-      // "좌우(가로)" 방향으로 길게 뻗어있다는 뜻이므로 dir을 "horizontal"로 정합니다.
-      // 반대로 위/아래가 벽이라면 "상하(세로)"로 뻗어있는 벽이므로 "vertical"로 정합니다.
+      // 왼쪽/오른쪽이 벽으로 막혀있다면 "가로(horizontal)" 방향 문으로 판단하고,
+      // 위/아래가 벽으로 막혀있다면 "세로(vertical)" 방향 문으로 판단합니다.
       let direction = "horizontal"; // 혹시 판단이 애매할 경우를 대비한 기본값입니다.
 
       if (leftIsWall && rightIsWall) {
@@ -371,9 +317,8 @@ function generateDoorsFromMap() {
         direction = "vertical";
       }
 
-      // 기존 doors 배열의 항목({x, y, open, dir})과 똑같은 모양으로 객체를 만들어 넣습니다.
+      // 문 하나의 정보를 { x, y, open, dir } 형태로 만들어서 목록에 추가합니다.
       // x, y에 0.5를 더하는 이유는, 타일 하나의 "정중앙" 좌표를 쓰기 위해서입니다.
-      // (예: 92번째, 2번째 칸이면 -> 92.5, 2.5)
       generatedDoors.push({
         x: x + 0.5,
         y: y + 0.5,
@@ -387,8 +332,8 @@ function generateDoorsFromMap() {
   return generatedDoors;
 }
 
-// map 배열에서 값이 5(출구)인 칸을 전부 찾아,
-// 기존 exits 배열과 똑같이 생긴 데이터를 자동으로 만들어주는 함수입니다.
+// map 배열에서 값이 5(출구)인 칸을 전부 찾아서,
+// { x, y, block } 형태의 출구 데이터 목록을 자동으로 만들어주는 함수입니다.
 function generateExitsFromMap() {
   const generatedExits = [];
 
@@ -400,7 +345,7 @@ function generateExitsFromMap() {
         continue;
       }
 
-      // 기존 exits 배열의 항목({x, y, block})과 똑같은 모양으로 객체를 만들어 넣습니다.
+      // 출구 하나의 정보를 { x, y, block } 형태로 만들어서 목록에 추가합니다.
       generatedExits.push({
         x: x + 0.5,
         y: y + 0.5,
@@ -412,17 +357,26 @@ function generateExitsFromMap() {
   return generatedExits;
 }
 
-// 위에서 만든 두 함수를 실제로 한 번 실행해서 결과를 변수에 저장합니다.
-const autoGeneratedDoors = generateDoorsFromMap();
-const autoGeneratedExits = generateExitsFromMap();
+// ----------------------------------------------------------
+// 이제 실제로 사용할 doors, exits 배열을,
+// 손으로 적는 대신 위에서 만든 함수를 실행한 결과로 채웁니다.
+// 앞으로 map 배열만 바꾸면 doors와 exits는 자동으로 따라서 바뀝니다.
+// ----------------------------------------------------------
+const doors = generateDoorsFromMap();
+const exits = generateExitsFromMap();
 
-// 기존에 손으로 적어둔 doors, exits 배열과 개수를 비교해보기 위해
-// 브라우저 콘솔(F12 -> Console 탭)에 결과를 출력해봅니다.
-// 아직 게임 동작에는 영향을 주지 않고, 확인용으로만 사용합니다.
-console.log("[자동 생성] 문 개수:", autoGeneratedDoors.length, " / [기존] 문 개수:", doors.length);
-console.log("[자동 생성] 출구 개수:", autoGeneratedExits.length, " / [기존] 출구 개수:", exits.length);
-console.log("[자동 생성] 문 목록:", autoGeneratedDoors);
-console.log("[자동 생성] 출구 목록:", autoGeneratedExits);
+// doors 배열을 빠르게 찾아보기 위한 Map을 만듭니다.
+// (이 부분은 기존 코드와 완전히 동일한 방식입니다. doors의 내용물만 자동 생성으로 바뀐 것뿐입니다.)
+const doorMap = new Map();
+doors.forEach(d => doorMap.set(`${Math.floor(d.x)},${Math.floor(d.y)}`, d));
+
+// exits 배열도 마찬가지로 빠르게 찾아보기 위한 Map을 만듭니다.
+const exitMap = new Map();
+exits.forEach(e => exitMap.set(`${Math.floor(e.x)},${Math.floor(e.y)}`, e));
+
+// 잘 만들어졌는지 확인할 수 있도록, 콘솔(F12 -> Console 탭)에 개수를 출력해봅니다.
+console.log("[자동 생성 적용] 문 개수:", doors.length);
+console.log("[자동 생성 적용] 출구 개수:", exits.length);
 
 
     let player = {
