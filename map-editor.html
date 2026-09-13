@@ -85,6 +85,15 @@
     transform: scale(0.98);
   }
 
+  /* 버튼이 눌러서 사용할 수 없는 상태(되돌릴 기록이 없을 때 등)일 때 흐리게 표시 */
+  button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  button:disabled:hover {
+    background: #3b2a10; /* 비활성 상태에서는 마우스를 올려도 색이 안 바뀌게 함 */
+  }
+
   /* ===== 타일 종류 선택 버튼들을 담는 영역 ===== */
   #palette {
     display: flex;
@@ -118,6 +127,16 @@
     font-size: 14px;
   }
 
+  /* 팔레트 옆에 붙는 "이 타일은 몇 번 키" 안내 글자 */
+  .key-hint {
+    margin-left: auto;
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    color: #a08a5f;
+    border: 1px solid #5a3d15;
+    padding: 0 6px;
+  }
+
   textarea {
     width: 100%;
     height: 160px;
@@ -136,12 +155,30 @@
     line-height: 1.5;
   }
 
+  /* 단축키 안내 목록을 깔끔하게 보여주기 위한 스타일 */
+  .shortcut-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 12px;
+    color: #d8c199;
+    line-height: 1.9;
+  }
+  .shortcut-list kbd {
+    background: #0d0904;
+    border: 1px solid #5a3d15;
+    padding: 1px 6px;
+    font-family: 'Consolas', monospace;
+    color: #f3dd8a;
+  }
+
   /* ===== 오른쪽 작업 영역 (그리드가 그려지는 곳) ===== */
   #workspace {
     flex-grow: 1; /* 남은 공간을 전부 차지 */
     display: flex;
     flex-direction: column;
     height: 100vh;
+    min-width: 0; /* flex 자식이 내용물 때문에 넘치지 않도록 함 */
   }
 
   #statusbar {
@@ -152,17 +189,135 @@
     font-size: 18px;
     display: flex;
     gap: 24px;
+    flex-wrap: wrap; /* 창이 좁아지면 다음 줄로 넘어가도록 함 */
   }
 
-  #canvasWrap {
+  /* [신규] 되돌리기/다시하기/화면맞추기 버튼과 단축키 안내가 들어가는 상단 툴바 */
+  #toolbar {
+    padding: 8px 16px;
+    background: #1a1208;
+    border-bottom: 3px solid #3b2a10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  #toolbar .toolbar-hint {
+    margin-left: auto; /* 남는 공간을 왼쪽으로 밀어서 안내 문구를 오른쪽 끝에 붙임 */
+    font-size: 12px;
+    color: #a08a5f;
+  }
+
+  /* [신규] 눈금자 + 캔버스를 담는 격자 레이아웃 영역 */
+  #gridArea {
     flex-grow: 1;
-    overflow: auto; /* 맵이 화면보다 크면 스크롤로 이동 */
+    display: grid;
+    /* 왼쪽 44px은 세로 눈금자 자리, 위쪽 22px은 가로 눈금자 자리 */
+    grid-template-columns: 44px 1fr;
+    grid-template-rows: 22px 1fr;
+    overflow: hidden; /* 내부 canvasWrap에서만 스크롤이 생기도록 함 */
     background: #100b05;
   }
 
-  canvas {
+  /* 눈금자 두 개가 만나는 왼쪽 위 빈 모서리 칸 */
+  #corner {
+    grid-column: 1;
+    grid-row: 1;
+    background: #1a1208;
+    border-right: 1px solid #3b2a10;
+    border-bottom: 1px solid #3b2a10;
+  }
+
+  /* 가로 눈금자(칸 번호가 위에서 왼쪽->오른쪽으로 보이는 부분)를 감싸는 상자 */
+  #rulerTopWrap {
+    grid-column: 2;
+    grid-row: 1;
+    overflow: hidden; /* 실제 눈금자보다 화면이 좁을 수 있으므로 넘치는 부분은 숨김 */
+    background: #1a1208;
+    border-bottom: 1px solid #3b2a10;
+  }
+
+  /* 세로 눈금자(칸 번호가 왼쪽에서 위->아래로 보이는 부분)를 감싸는 상자 */
+  #rulerLeftWrap {
+    grid-column: 1;
+    grid-row: 2;
+    overflow: hidden;
+    background: #1a1208;
+    border-right: 1px solid #3b2a10;
+  }
+
+  #canvasWrap {
+    grid-column: 2;
+    grid-row: 2;
+    overflow: auto; /* 맵이 화면보다 크면 여기서만 스크롤로 이동 */
+    background: #100b05;
+  }
+
+  /* [신규] 지도 캔버스와 오버레이 캔버스를 정확히 겹쳐서 쌓아두기 위한 기준 상자 */
+  #canvasStack {
+    position: relative; /* 안에 있는 canvas 두 개가 이 상자를 기준으로 겹쳐지게 함 */
+  }
+
+  #mapCanvas, #overlayCanvas {
     display: block;
+    position: absolute; /* 같은 위치(왼쪽 위 0,0)에 정확히 겹쳐지도록 함 */
+    top: 0;
+    left: 0;
+  }
+
+  #mapCanvas {
     cursor: crosshair;
+  }
+
+  /* [신규] 강조 표시용 오버레이 캔버스는 마우스 이벤트를 무시하고
+     바로 아래에 있는 mapCanvas가 클릭/드래그를 받도록 합니다. */
+  #overlayCanvas {
+    pointer-events: none;
+  }
+
+  /* [신규] "좌표로 이동" 입력칸들을 가로로 나란히 배치하기 위한 상자 */
+  .goto-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .goto-row > div {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* [신규] 미니맵(전체 지도 축소판)을 감싸는 상자입니다.
+     지도 캔버스와 똑같이, 타일 이미지 캔버스와 "지금 보고 있는 범위" 테두리 캔버스를 겹쳐 놓습니다. */
+  #minimapWrap {
+    position: relative;
+    display: inline-block; /* 안에 들어있는 캔버스 크기만큼만 딱 맞게 감싸도록 함 */
+    border: 1px solid #5a3d15;
+    cursor: pointer; /* 클릭해서 이동할 수 있다는 것을 마우스 커서로 알려줌 */
+    background: #0d0904;
+  }
+  #minimapCanvas, #minimapViewport {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  #minimapViewport {
+    pointer-events: none; /* 테두리 전용 캔버스는 클릭을 무시하고 아래 캔버스가 클릭을 받게 함 */
+  }
+
+  /* [신규] "선택한 타일만 강조해서 보기" 체크박스 한 줄 */
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #d8c199;
+  }
+  .checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
   }
 </style>
 </head>
@@ -184,7 +339,7 @@
       <input type="number" id="inputHeight" value="20" min="1" max="200">
       <br><br>
       <button id="btnCreate">이 크기로 새로 만들기</button>
-      <p class="hint">주의: 새로 만들기를 누르면 지금 그린 맵은 사라집니다. 필요하면 먼저 내보내기로 저장해두세요.</p>
+      <p class="hint">주의: 새로 만들기를 누르면 지금 그린 맵은 사라집니다. 필요하면 먼저 내보내기로 저장하시거나, 실수했다면 되돌리기(Ctrl+Z)로 복구하실 수 있습니다.</p>
     </div>
 
     <div class="section">
@@ -195,8 +350,9 @@
     <div class="section">
       <h3>3. 화면 배율</h3>
       <label>칸 크기 (px)</label>
-      <input type="number" id="inputCellSize" value="24" min="6" max="60">
+      <input type="number" id="inputCellSize" value="24" min="2" max="60">
       <button id="btnZoomApply">적용</button>
+      <button id="btnFit" style="margin-left:6px;">화면에 맞추기</button>
     </div>
 
     <div class="section">
@@ -214,6 +370,56 @@
       <textarea id="exportArea" placeholder="여기에 결과가 나옵니다" readonly></textarea>
     </div>
 
+    <!-- [신규] 새로 추가된 단축키들을 한눈에 볼 수 있는 안내 섹션 -->
+    <div class="section">
+      <h3>6. 단축키 안내</h3>
+      <ul class="shortcut-list">
+        <li><kbd>0</kbd> ~ <kbd>5</kbd> : 해당 번호 타일 즉시 선택</li>
+        <li><kbd>Shift</kbd> + 드래그 : 사각형 범위 한번에 채우기</li>
+        <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> : 되돌리기</li>
+        <li><kbd>Ctrl</kbd> + <kbd>Y</kbd> : 다시하기</li>
+        <li><kbd>Ctrl</kbd> + 휠 : 마우스 위치 기준 확대/축소</li>
+        <li><kbd>방향키</kbd> : 화면 이동(스크롤)</li>
+      </ul>
+    </div>
+
+    <!-- [신규] 큰 맵에서 원하는 위치로 바로 이동할 수 있는 좌표 입력 섹션 -->
+    <div class="section">
+      <h3>7. 좌표로 이동</h3>
+      <p class="hint">큰 맵에서 스크롤을 계속 끌지 않고, 알고 있는 좌표로 화면을 바로 옮길 수 있습니다.</p>
+      <div class="goto-row">
+        <div>
+          <label>X 좌표</label>
+          <input type="number" id="gotoX" value="0">
+        </div>
+        <div>
+          <label>Y 좌표</label>
+          <input type="number" id="gotoY" value="0">
+        </div>
+        <button id="btnGoTo">이동</button>
+      </div>
+    </div>
+
+    <!-- [신규] 전체 지도를 작게 보여주고, 클릭한 위치로 화면을 옮겨주는 미니맵 섹션 -->
+    <div class="section">
+      <h3>8. 미니맵 (클릭해서 이동)</h3>
+      <p class="hint">흰색 테두리가 지금 오른쪽 화면에 보이는 범위입니다. 미니맵을 클릭하면 그 위치로 화면이 이동합니다.</p>
+      <div id="minimapWrap">
+        <canvas id="minimapCanvas"></canvas>
+        <canvas id="minimapViewport"></canvas>
+      </div>
+    </div>
+
+    <!-- [신규] 문/출구처럼 드문드문 있는 타일을 큰 맵에서 쉽게 찾을 수 있게 해주는 강조 보기 옵션 -->
+    <div class="section">
+      <h3>9. 보기 옵션</h3>
+      <div class="checkbox-row">
+        <input type="checkbox" id="checkHighlight">
+        <label for="checkHighlight" style="margin:0;">선택한 타일(팔레트에서 고른 타일)만 밝게, 나머지는 어둡게 보기</label>
+      </div>
+      <p class="hint">예를 들어 4번(문)을 선택한 상태에서 이 옵션을 켜면, 큰 맵 안에 흩어진 문들이 한눈에 보입니다.</p>
+    </div>
+
   </div>
 
   <!-- ================= 오른쪽 작업 영역 ================= -->
@@ -223,9 +429,29 @@
       <span id="statusCursor">커서 좌표: -</span>
       <span id="statusTile">칸의 값: -</span>
       <span id="statusSelected">선택된 타일: -</span>
+      <!-- [신규] 지금 맵에 문(4)과 출구(5)가 몇 개 있는지 실시간으로 보여주는 칸 -->
+      <span id="statusDoors">문/출구: -</span>
     </div>
-    <div id="canvasWrap">
-      <canvas id="mapCanvas"></canvas>
+
+    <!-- [신규] 되돌리기 / 다시하기 / 화면맞추기 버튼을 모아둔 상단 툴바 -->
+    <div id="toolbar">
+      <button id="btnUndo" disabled>되돌리기 (Ctrl+Z)</button>
+      <button id="btnRedo" disabled>다시하기 (Ctrl+Y)</button>
+      <span class="toolbar-hint">Shift + 드래그 = 사각형 채우기 · 숫자 0~5 = 타일 빠른 선택</span>
+    </div>
+
+    <!-- [신규] 눈금자와 캔버스를 함께 배치하는 격자 영역 -->
+    <div id="gridArea">
+      <div id="corner"></div>
+      <div id="rulerTopWrap"><canvas id="rulerTop"></canvas></div>
+      <div id="rulerLeftWrap"><canvas id="rulerLeft"></canvas></div>
+      <div id="canvasWrap">
+        <!-- 지도 캔버스와 강조표시용 오버레이 캔버스를 겹쳐서 담는 상자 -->
+        <div id="canvasStack">
+          <canvas id="mapCanvas"></canvas>
+          <canvas id="overlayCanvas"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -257,6 +483,29 @@
   let rows = 0; // 세로 칸 수
   let cellSize = 24; // 화면에서 칸 하나의 크기(px)
 
+  // [신규] 되돌리기 / 다시하기 기능을 위한 기록 저장소입니다.
+  // 배열 안에 "그 시점의 mapData 전체 복사본"을 차곡차곡 쌓아둡니다.
+  let undoStack = [];
+  let redoStack = [];
+  const MAX_UNDO = 50; // 기록을 너무 많이 쌓아두면 메모리를 많이 쓰므로 최대 개수를 제한합니다.
+
+  // [신규] 마우스가 지금 어느 칸 위에 있는지 기억해두는 변수입니다 (강조 표시에 사용).
+  let hoverCell = null;
+
+  // [신규] "사각형 채우기 모드" 관련 상태값들입니다.
+  let isRectMode = false;     // 지금 Shift+드래그로 사각형을 그리는 중인지 여부
+  let rectStart = null;       // 사각형을 시작한 칸의 좌표 {x, y}
+  let rectPaintValue = 0;     // 사각형이 완성되면 채워 넣을 타일 값
+
+  // [신규] 문(4)/출구(5) 개수를 매번 맵 전체를 다시 세지 않고, 값이 바뀔 때마다
+  // 조금씩 더하고 빼는 방식으로 계속 최신 상태로 유지하기 위한 변수입니다.
+  // (큰 맵에서 칸을 하나 칠할 때마다 전체를 다시 세면 느려지기 때문입니다)
+  let doorCount = 0;
+  let exitCount = 0;
+
+  // [신규] "선택한 타일만 밝게, 나머지는 어둡게" 강조 보기 모드가 켜져 있는지 여부
+  let highlightMode = false;
+
   // ---------- 3. 화면 요소 가져오기 ----------
   const canvas = document.getElementById("mapCanvas");
   const ctx = canvas.getContext("2d");
@@ -265,6 +514,36 @@
   const statusCursor = document.getElementById("statusCursor");
   const statusTile = document.getElementById("statusTile");
   const statusSelected = document.getElementById("statusSelected");
+  const statusDoors = document.getElementById("statusDoors"); // [신규] 문/출구 개수 표시 칸
+
+  // [신규] 오버레이 캔버스(마우스 강조, 사각형 미리보기 전용) 관련 요소들
+  const overlayCanvas = document.getElementById("overlayCanvas");
+  const overlayCtx = overlayCanvas.getContext("2d");
+
+  // [신규] 눈금자와 스크롤 동기화를 위한 요소들
+  const canvasWrap = document.getElementById("canvasWrap");
+  const canvasStack = document.getElementById("canvasStack");
+  const rulerTopWrap = document.getElementById("rulerTopWrap");
+  const rulerLeftWrap = document.getElementById("rulerLeftWrap");
+  const rulerTop = document.getElementById("rulerTop");
+  const rulerLeft = document.getElementById("rulerLeft");
+  const rulerTopCtx = rulerTop.getContext("2d");
+  const rulerLeftCtx = rulerLeft.getContext("2d");
+
+  // [신규] 되돌리기/다시하기 버튼 요소
+  const btnUndo = document.getElementById("btnUndo");
+  const btnRedo = document.getElementById("btnRedo");
+
+  // [신규] 미니맵(전체 지도 축소판) 관련 요소들
+  const minimapWrap = document.getElementById("minimapWrap");
+  const minimapCanvas = document.getElementById("minimapCanvas");
+  const minimapCtx = minimapCanvas.getContext("2d");
+  const minimapViewport = document.getElementById("minimapViewport");
+  const minimapViewportCtx = minimapViewport.getContext("2d");
+  let minimapScale = 1; // 실제 맵 1칸이 미니맵에서는 몇 px로 그려지는지에 대한 배율
+
+  // [신규] "선택한 타일만 강조해서 보기" 체크박스 요소
+  const checkHighlight = document.getElementById("checkHighlight");
 
   // ---------- 4. 빈 맵 만들기 함수 ----------
   // 지정한 가로/세로 크기만큼 전부 0(빈 공간)으로 채워진 2차원 배열을 만듭니다.
@@ -284,19 +563,47 @@
   function resizeCanvasToMap() {
     canvas.width = cols * cellSize;  // 가로 칸 수 * 칸 크기 = 전체 캔버스 가로 길이
     canvas.height = rows * cellSize; // 세로 칸 수 * 칸 크기 = 전체 캔버스 세로 길이
+
+    // [신규] 오버레이 캔버스도 지도 캔버스와 완전히 같은 크기로 맞춰줘야
+    // 두 캔버스가 어긋나지 않고 정확히 같은 칸 위에 겹쳐집니다.
+    overlayCanvas.width = canvas.width;
+    overlayCanvas.height = canvas.height;
+
+    // [신규] 두 캔버스를 감싸는 바깥 상자도 실제 크기만큼 늘려줘야
+    // canvasWrap의 스크롤 영역과 눈금자 동기화가 올바르게 동작합니다.
+    canvasStack.style.width = canvas.width + "px";
+    canvasStack.style.height = canvas.height + "px";
+
+    // [신규] 위쪽 눈금자는 가로 길이를, 왼쪽 눈금자는 세로 길이를
+    // 지도 캔버스와 똑같이 맞춰줍니다 (눈금 위치가 칸과 정확히 일치해야 하므로).
+    rulerTop.width = canvas.width;
+    rulerTop.height = 22;
+    rulerLeft.width = 44;
+    rulerLeft.height = canvas.height;
+
+    drawRulers(); // 크기가 바뀌었으니 눈금자 내용도 새로 그려줍니다.
+    resizeMinimap(); // [신규] 맵 크기나 확대/축소가 바뀌었으니 미니맵도 다시 계산합니다.
   }
 
-  // ---------- 6. 맵을 화면에 그리는 함수 ----------
+  // ---------- 6. 맵을 화면에 그리는 함수 (맵 전체를 처음부터 다시 그릴 때 사용) ----------
   function drawMap() {
     // 캔버스 전체를 지웁니다 (이전에 그린 내용 삭제).
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // [신규] 문(4)과 출구(5)의 개수를 이번 기회에 처음부터 다시 세어서
+    // 전역 변수(doorCount, exitCount)를 최신 값으로 맞춰둡니다.
+    doorCount = 0;
+    exitCount = 0;
+
     for (let y = 0; y < rows; y++) {           // 모든 행에 대해
       for (let x = 0; x < cols; x++) {         // 모든 열에 대해
         const value = mapData[y][x];           // 이 칸의 타일 값(0~5)을 가져옴
-        const tileInfo = TILE_TYPES.find(t => t.value === value); // 값에 맞는 색 정보 찾기
-        ctx.fillStyle = tileInfo ? tileInfo.color : "#ff00ff"; // 정의 안 된 값이면 눈에 띄는 분홍색
+        ctx.fillStyle = getCellColor(value);   // [신규] 강조 보기 모드를 반영한 색을 가져옴
         ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize); // 사각형 하나를 칠함
+
+        // [신규] 지나가는 김에 문/출구 개수도 함께 세어둡니다.
+        if (value === 4) doorCount++;
+        if (value === 5) exitCount++;
       }
     }
 
@@ -315,6 +622,262 @@
       ctx.lineTo(cols * cellSize, y * cellSize);
       ctx.stroke();
     }
+
+    // 방금 세어둔 문/출구 개수를 상태표시줄 글자로 보여줍니다.
+    // game.html에서 자동으로 문/출구를 인식하는 개수와 비교해볼 수 있습니다.
+    statusDoors.textContent = `문(4): ${doorCount}개 · 출구(5): ${exitCount}개`;
+
+    drawMinimap(); // [신규] 맵 전체가 바뀌었으니 미니맵도 처음부터 다시 그려줍니다.
+  }
+
+  // ---------- 6-0. [신규] 강조 보기 모드를 반영해서 이 값의 색을 결정해주는 함수 ----------
+  // 지도 캔버스와 "칸 하나만 다시 그리는" 함수 양쪽에서 공통으로 사용합니다.
+  function getCellColor(value) {
+    const tileInfo = TILE_TYPES.find(t => t.value === value); // 값에 맞는 색 정보 찾기
+
+    if (highlightMode) {
+      // 강조 보기 모드에서는, 지금 팔레트에서 선택한 타일만 원래 색으로 밝게 보여주고
+      // 나머지 칸은 전부 아주 어두운 색으로 눌러서 눈에 덜 띄게 만듭니다.
+      return (value === selectedTile) ? (tileInfo ? tileInfo.color : "#ff00ff") : "#151515";
+    }
+
+    // 평소에는 그냥 원래 타일 색을 그대로 사용합니다.
+    return tileInfo ? tileInfo.color : "#ff00ff";
+  }
+
+  // ---------- 6-1. [신규] 눈금자를 그리는 함수 ----------
+  function drawRulers() {
+    // 칸 크기가 작을수록 숫자 사이 간격을 넓혀서 글자끼리 겹치지 않도록 합니다.
+    const step = cellSize < 12 ? 20 : (cellSize < 20 ? 10 : 5);
+
+    // ----- 위쪽 눈금자 (가로 좌표, 0, 5, 10, 15 ... ) -----
+    rulerTopCtx.clearRect(0, 0, rulerTop.width, rulerTop.height); // 이전에 그린 내용 지우기
+    rulerTopCtx.fillStyle = "#a08a5f";   // 눈금 숫자 색
+    rulerTopCtx.font = "10px monospace"; // 작은 고정폭 글꼴
+    rulerTopCtx.textAlign = "center";    // 숫자를 칸 중앙에 맞춰 표시
+
+    for (let x = 0; x < cols; x += step) {
+      const px = x * cellSize + cellSize / 2; // 이 칸의 가로 중앙 픽셀 위치
+      rulerTopCtx.fillText(String(x), px, 14); // 칸 번호 숫자를 표시
+      rulerTopCtx.beginPath();                 // 숫자 아래에 작은 눈금선도 함께 그림
+      rulerTopCtx.moveTo(x * cellSize, 16);
+      rulerTopCtx.lineTo(x * cellSize, rulerTop.height);
+      rulerTopCtx.strokeStyle = "#5a3d15";
+      rulerTopCtx.stroke();
+    }
+
+    // ----- 왼쪽 눈금자 (세로 좌표, 0, 5, 10, 15 ... ) -----
+    rulerLeftCtx.clearRect(0, 0, rulerLeft.width, rulerLeft.height);
+    rulerLeftCtx.fillStyle = "#a08a5f";
+    rulerLeftCtx.font = "10px monospace";
+    rulerLeftCtx.textAlign = "right"; // 숫자를 눈금자 오른쪽 끝에 붙여서 표시
+
+    for (let y = 0; y < rows; y += step) {
+      const py = y * cellSize + cellSize / 2 + 3; // 세로 중앙 위치(글자 높이 보정을 위해 +3)
+      rulerLeftCtx.fillText(String(y), rulerLeft.width - 4, py);
+    }
+  }
+
+  // ---------- 6-2. [신규] 마우스 강조/사각형 미리보기를 그리는 함수 ----------
+  function drawOverlay() {
+    // 매번 새로 그리기 전에 이전에 그렸던 강조 표시를 지웁니다.
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    if (isRectMode && rectStart && hoverCell) {
+      // ----- 사각형 채우기 모드일 때: 채워질 범위를 미리 보여줍니다 -----
+      // 시작점과 지금 마우스 위치 중에서 작은 값/큰 값을 각각 찾아 사각형 범위를 정합니다.
+      const x1 = Math.min(rectStart.x, hoverCell.x);
+      const x2 = Math.max(rectStart.x, hoverCell.x);
+      const y1 = Math.min(rectStart.y, hoverCell.y);
+      const y2 = Math.max(rectStart.y, hoverCell.y);
+
+      const px = x1 * cellSize;
+      const py = y1 * cellSize;
+      const pw = (x2 - x1 + 1) * cellSize;
+      const ph = (y2 - y1 + 1) * cellSize;
+
+      overlayCtx.fillStyle = "rgba(243, 221, 138, 0.35)"; // 반투명한 미리보기 채우기 색
+      overlayCtx.fillRect(px, py, pw, ph);
+      overlayCtx.strokeStyle = "#f3dd8a"; // 테두리는 조금 더 진하게
+      overlayCtx.lineWidth = 2;
+      overlayCtx.strokeRect(px, py, pw, ph);
+    } else if (hoverCell && hoverCell.x >= 0 && hoverCell.x < cols && hoverCell.y >= 0 && hoverCell.y < rows) {
+      // ----- 평소 상태일 때: 마우스가 있는 칸 하나만 테두리로 강조합니다 -----
+      overlayCtx.strokeStyle = "#ffffff";
+      overlayCtx.lineWidth = 2;
+      overlayCtx.strokeRect(
+        hoverCell.x * cellSize + 1,
+        hoverCell.y * cellSize + 1,
+        cellSize - 2,
+        cellSize - 2
+      );
+    }
+  }
+
+  // ---------- 6-2-1. [신규] 미니맵(전체 지도 축소판) 관련 함수들 ----------
+
+  // 맵의 가로/세로 칸 수가 바뀔 때마다(새로 만들기, 불러오기, 되돌리기 등)
+  // 미니맵 캔버스 크기와 배율을 다시 계산하고 처음부터 다시 그려줍니다.
+  function resizeMinimap() {
+    // 미니맵이 너무 커지지 않도록, 가로/세로 최대 크기를 정해둡니다.
+    const MINIMAP_MAX_W = 256;
+    const MINIMAP_MAX_H = 170;
+
+    // 가로 기준 배율과 세로 기준 배율 중 더 작은 쪽을 선택해서,
+    // 미니맵이 최대 크기를 넘지 않으면서도 맵의 가로세로 비율이 찌그러지지 않게 합니다.
+    minimapScale = Math.min(MINIMAP_MAX_W / cols, MINIMAP_MAX_H / rows);
+
+    // 계산한 배율에 맞춰 미니맵 캔버스 두 장(타일용, 테두리용)의 실제 크기를 정합니다.
+    minimapCanvas.width = Math.max(1, Math.round(cols * minimapScale));
+    minimapCanvas.height = Math.max(1, Math.round(rows * minimapScale));
+    minimapViewport.width = minimapCanvas.width;
+    minimapViewport.height = minimapCanvas.height;
+
+    drawMinimap(); // 크기가 바뀌었으니 미니맵 타일 전체를 새로 그려줍니다.
+  }
+
+  // 미니맵에 맵 전체를 처음부터 다시 그리는 함수입니다 (칸이 많지 않은 미니맵 크기라 가볍습니다).
+  function drawMinimap() {
+    minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const value = mapData[y][x];
+        const tileInfo = TILE_TYPES.find(t => t.value === value);
+        // [참고] 미니맵은 위치 파악용이므로, 강조 보기 모드와 상관없이 항상 원래 색으로 보여줍니다.
+        minimapCtx.fillStyle = tileInfo ? tileInfo.color : "#ff00ff";
+        // Math.ceil로 살짝 여유 있게 그려서, 배율이 딱 안 나눠떨어질 때 생기는 미세한 틈을 없앱니다.
+        minimapCtx.fillRect(x * minimapScale, y * minimapScale, Math.ceil(minimapScale), Math.ceil(minimapScale));
+      }
+    }
+
+    drawMinimapViewport(); // 타일을 다 그렸으니 그 위에 "지금 보고 있는 범위" 테두리도 그려줍니다.
+  }
+
+  // 칸 하나만 바뀌었을 때, 미니맵 전체가 아니라 그 칸 하나만 빠르게 다시 그리는 함수입니다.
+  // (드래그로 한 칸씩 칠할 때마다 미니맵 전체를 다시 그리면 느려지므로 이 함수를 사용합니다)
+  function drawMinimapCell(x, y) {
+    const value = mapData[y][x];
+    const tileInfo = TILE_TYPES.find(t => t.value === value);
+    minimapCtx.fillStyle = tileInfo ? tileInfo.color : "#ff00ff";
+    minimapCtx.fillRect(x * minimapScale, y * minimapScale, Math.ceil(minimapScale), Math.ceil(minimapScale));
+  }
+
+  // 지금 오른쪽 캔버스 영역(canvasWrap)에서 실제로 보이고 있는 범위를 계산해서,
+  // 미니맵 위에 흰색 테두리 사각형으로 표시해주는 함수입니다.
+  function drawMinimapViewport() {
+    // 테두리 전용 캔버스만 지우고 다시 그립니다 (타일이 그려진 아래쪽 캔버스는 그대로 둠).
+    minimapViewportCtx.clearRect(0, 0, minimapViewport.width, minimapViewport.height);
+
+    // canvasWrap.scrollLeft/scrollTop = 지금 얼마나 스크롤되어 있는지 (실제 캔버스 픽셀 기준)
+    // 이 값을 "칸 단위"로 바꾼 뒤, 다시 미니맵 배율을 곱해서 미니맵 위의 픽셀 좌표로 바꿉니다.
+    const viewX = (canvasWrap.scrollLeft / cellSize) * minimapScale;
+    const viewY = (canvasWrap.scrollTop / cellSize) * minimapScale;
+    const viewW = (canvasWrap.clientWidth / cellSize) * minimapScale;
+    const viewH = (canvasWrap.clientHeight / cellSize) * minimapScale;
+
+    minimapViewportCtx.strokeStyle = "#ffffff";
+    minimapViewportCtx.lineWidth = 1;
+    minimapViewportCtx.strokeRect(viewX, viewY, viewW, viewH);
+  }
+
+  // [신규] 미니맵을 클릭하면, 클릭한 위치가 화면 중앙에 오도록 오른쪽 캔버스를 스크롤합니다.
+  minimapWrap.addEventListener("click", (e) => {
+    const rect = minimapCanvas.getBoundingClientRect(); // 미니맵 캔버스의 화면상 위치
+    const mx = e.clientX - rect.left; // 미니맵 안에서 클릭한 x 픽셀 위치
+    const my = e.clientY - rect.top;  // 미니맵 안에서 클릭한 y 픽셀 위치
+
+    // 미니맵 픽셀 좌표를 실제 맵의 "칸" 좌표로 되돌립니다 (미니맵 배율을 거꾸로 나눔).
+    const targetCellX = mx / minimapScale;
+    const targetCellY = my / minimapScale;
+
+    // 그 칸이 화면(canvasWrap) 정중앙에 오도록 스크롤 위치를 계산합니다.
+    const targetScrollLeft = targetCellX * cellSize - canvasWrap.clientWidth / 2;
+    const targetScrollTop = targetCellY * cellSize - canvasWrap.clientHeight / 2;
+
+    // 스크롤 값이 음수가 되지 않도록 0 이상으로 제한합니다.
+    canvasWrap.scrollLeft = Math.max(0, targetScrollLeft);
+    canvasWrap.scrollTop = Math.max(0, targetScrollTop);
+  });
+
+  // ---------- 6-3. 눈금자와 지도 캔버스의 스크롤을 맞추는 부분 ----------
+  // canvasWrap을 스크롤하면(위/아래/좌/우로 이동하면), 눈금자도 똑같이 따라 움직여야
+  // 지금 보고 있는 칸의 좌표와 눈금 숫자가 계속 맞아떨어집니다.
+  canvasWrap.addEventListener("scroll", () => {
+    rulerTopWrap.scrollLeft = canvasWrap.scrollLeft; // 위쪽 눈금자를 가로로 같이 움직임
+    rulerLeftWrap.scrollTop = canvasWrap.scrollTop;  // 왼쪽 눈금자를 세로로 같이 움직임
+    drawMinimapViewport(); // [신규] 스크롤한 만큼 미니맵의 "지금 보는 범위" 테두리도 함께 옮겨줍니다.
+  });
+
+  // ---------- 6-4. [신규] 되돌리기 / 다시하기 기록 관련 함수들 ----------
+
+  // 지금 이 순간의 mapData를 통째로 복사해서 되돌리기 기록에 쌓아두는 함수입니다.
+  // 실제로 칸을 칠하기 "직전"에 이 함수를 호출해두면, 나중에 되돌리기를 눌렀을 때
+  // 칠하기 전 상태로 돌아갈 수 있습니다.
+  function snapshotForUndo() {
+    // JSON.stringify로 문자열로 바꿨다가 JSON.parse로 다시 배열로 만들면,
+    // 원본과 완전히 분리된 "복사본"이 만들어집니다 (그냥 대입하면 같은 배열을 공유하게 되어 안 됩니다).
+    undoStack.push(JSON.parse(JSON.stringify(mapData)));
+
+    // 기록이 너무 많이 쌓이면 메모리를 많이 차지하므로, 오래된 기록부터 하나씩 버립니다.
+    if (undoStack.length > MAX_UNDO) {
+      undoStack.shift();
+    }
+
+    // 새로운 작업(칠하기)을 시작했다는 것은, 이전에 "다시하기"로 되돌릴 수 있었던
+    // 미래 기록들이 더 이상 의미가 없어졌다는 뜻이므로 다시하기 기록을 비웁니다.
+    redoStack = [];
+
+    updateUndoRedoButtons(); // 버튼을 누를 수 있는지 없는지 다시 확인해서 화면에 반영
+  }
+
+  // "되돌리기" 버튼을 눌렀을 때 실행되는 함수입니다.
+  function undo() {
+    if (undoStack.length === 0) return; // 되돌릴 기록이 없으면 아무것도 하지 않음
+
+    // 되돌리기 전에, 지금 상태를 "다시하기" 기록에 넣어둡니다.
+    // (되돌린 뒤에 마음이 바뀌어 "다시하기"를 눌렀을 때 원래 상태로 갈 수 있도록 하기 위함)
+    redoStack.push(JSON.parse(JSON.stringify(mapData)));
+
+    // 되돌리기 기록에서 가장 최근 상태를 하나 꺼내와서 지금 맵으로 교체합니다.
+    mapData = undoStack.pop();
+    rows = mapData.length;
+    cols = mapData[0].length;
+
+    // 맵 크기가 바뀌었을 수도 있으니 입력창 숫자도 함께 맞춰줍니다.
+    document.getElementById("inputWidth").value = cols;
+    document.getElementById("inputHeight").value = rows;
+
+    resizeCanvasToMap();
+    drawMap();
+    statusSize.textContent = `크기: 가로 ${cols} x 세로 ${rows}`;
+    updateUndoRedoButtons();
+  }
+
+  // "다시하기" 버튼을 눌렀을 때 실행되는 함수입니다. (undo와 반대 방향으로 동작)
+  function redo() {
+    if (redoStack.length === 0) return; // 다시 되돌릴(=재실행할) 기록이 없으면 아무것도 하지 않음
+
+    undoStack.push(JSON.parse(JSON.stringify(mapData)));
+
+    mapData = redoStack.pop();
+    rows = mapData.length;
+    cols = mapData[0].length;
+
+    document.getElementById("inputWidth").value = cols;
+    document.getElementById("inputHeight").value = rows;
+
+    resizeCanvasToMap();
+    drawMap();
+    statusSize.textContent = `크기: 가로 ${cols} x 세로 ${rows}`;
+    updateUndoRedoButtons();
+  }
+
+  // 되돌리기/다시하기 기록이 비어있으면 버튼을 눌러도 소용없다는 것을
+  // 눈으로 바로 알 수 있도록 버튼을 흐리게(비활성화) 처리해주는 함수입니다.
+  function updateUndoRedoButtons() {
+    btnUndo.disabled = (undoStack.length === 0);
+    btnRedo.disabled = (redoStack.length === 0);
   }
 
   // ---------- 7. 팔레트(타일 선택 버튼들) 만들기 ----------
@@ -333,14 +896,24 @@
       label.className = "tile-label";
       label.textContent = tile.name;
 
+      // [신규] "이 타일은 키보드 몇 번 키로 선택할 수 있는지" 안내하는 작은 글자
+      const keyHint = document.createElement("span");
+      keyHint.className = "key-hint";
+      keyHint.textContent = tile.value;
+
       btn.appendChild(swatch);
       btn.appendChild(label);
+      btn.appendChild(keyHint); // [신규] 오른쪽 끝에 단축키 숫자 표시
 
       // 이 버튼을 클릭하면 selectedTile을 이 타일 값으로 바꿉니다.
       btn.addEventListener("click", () => {
         selectedTile = tile.value;
         statusSelected.textContent = "선택된 타일: " + tile.name;
         buildPalette(); // 선택 테두리를 다시 그리기 위해 팔레트를 새로고침
+
+        // [신규] 강조 보기 모드 중에는 "어떤 타일이 밝게 보이는지"가 선택된 타일에 따라 바뀌므로
+        // 타일을 바꿀 때마다 지도를 새로 그려서 강조 표시를 즉시 갱신합니다.
+        if (highlightMode) drawMap();
       });
 
       paletteDiv.appendChild(btn);
@@ -358,26 +931,69 @@
   }
 
   // ---------- 9. 특정 칸에 타일 값을 칠하는 함수 ----------
+  // [최적화] 예전에는 칸 하나를 칠할 때마다 drawMap()을 호출해서 맵 전체(수만 칸)를
+  // 처음부터 다시 그렸습니다. 작은 맵에서는 문제없지만, 지금처럼 가로 200칸이 넘는
+  // 큰 맵에서는 드래그로 칠할 때마다 매번 전체를 다시 그리느라 버벅이게 됩니다.
+  // 그래서 이제는 "바뀐 칸 하나만" 다시 그리도록 바꿨습니다.
   function paintCell(cellX, cellY, value) {
     // 맵 범위 밖이면 아무것도 하지 않습니다 (에러 방지).
     if (cellY < 0 || cellY >= rows || cellX < 0 || cellX >= cols) return;
+
+    const oldValue = mapData[cellY][cellX]; // 칠하기 전 원래 값을 기억해둡니다.
+    if (oldValue === value) return; // 어차피 같은 값이면 다시 그릴 필요조차 없으므로 여기서 끝냅니다.
+
     mapData[cellY][cellX] = value; // 실제 데이터 값을 바꿈
-    drawMap(); // 바뀐 내용을 화면에 다시 그림
+
+    // [신규] 맵 전체를 다시 세는 대신, 이번에 바뀐 값만 반영해서 문/출구 개수를 즉시 갱신합니다.
+    if (oldValue === 4) doorCount--;
+    if (oldValue === 5) exitCount--;
+    if (value === 4) doorCount++;
+    if (value === 5) exitCount++;
+    statusDoors.textContent = `문(4): ${doorCount}개 · 출구(5): ${exitCount}개`;
+
+    drawSingleCell(cellX, cellY); // 맵 전체가 아니라 이 칸 하나만 화면에 다시 그림
+    drawMinimapCell(cellX, cellY); // 미니맵에도 이 칸 하나만 반영
+  }
+
+  // 칸 하나만 화면(mapCanvas)에 새로 칠하고, 그 칸의 격자선 테두리까지 함께 그려주는 함수입니다.
+  function drawSingleCell(x, y) {
+    const value = mapData[y][x];
+    ctx.fillStyle = getCellColor(value); // 강조 보기 모드를 반영한 색으로 칠함
+    ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+
+    // 칸 하나만 다시 칠하면 그 칸의 격자선도 함께 지워지므로, 테두리를 다시 그려줍니다.
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
   }
 
   // ---------- 10. 마우스 이벤트 연결 ----------
   let isPainting = false; // 지금 마우스 버튼을 누른 채로 드래그 중인지 여부
 
   canvas.addEventListener("mousedown", (e) => {
-    isPainting = true; // 드래그 칠하기 시작
     const { cellX, cellY } = getCellFromEvent(e);
-    // 오른쪽 클릭(버튼 번호 2)이면 항상 지우개(0), 아니면 선택된 타일로 칠함
-    const valueToPaint = (e.button === 2) ? 0 : selectedTile;
-    paintCell(cellX, cellY, valueToPaint);
+    const paintValue = (e.button === 2) ? 0 : selectedTile; // 오른쪽 클릭이면 항상 지우개(0)
+
+    if (e.shiftKey) {
+      // [신규] Shift를 누른 채로 클릭을 시작하면 "사각형 채우기 모드"가 시작됩니다.
+      // 실제로 칠하지는 않고, 일단 시작 위치와 채울 값만 기억해둡니다.
+      snapshotForUndo(); // 사각형이 완성되기 전에 미리 되돌리기 기록을 남겨둡니다.
+      isRectMode = true;
+      rectStart = { x: cellX, y: cellY };
+      rectPaintValue = paintValue;
+      hoverCell = { x: cellX, y: cellY };
+      drawOverlay(); // 시작하자마자 미리보기 사각형을 한 칸짜리로 그려줍니다.
+    } else {
+      // ----- 기존과 같은 "한 칸씩 드래그로 칠하기" 동작 -----
+      isPainting = true;
+      snapshotForUndo(); // 이번 드래그 칠하기를 시작하기 전 상태를 기록해둡니다 (드래그 1번 = 되돌리기 1단계).
+      paintCell(cellX, cellY, paintValue);
+    }
   });
 
   canvas.addEventListener("mousemove", (e) => {
     const { cellX, cellY } = getCellFromEvent(e);
+    hoverCell = { x: cellX, y: cellY }; // [신규] 지금 마우스가 있는 칸 위치를 기억해둠
 
     // 상태 표시줄에 현재 커서가 있는 칸의 좌표와 값을 보여줍니다.
     // game.html의 doors/exits 좌표는 "칸 번호 + 0.5" 형태이므로 함께 표시해줍니다.
@@ -386,24 +1002,160 @@
       statusTile.textContent = "칸의 값: " + mapData[cellY][cellX];
     }
 
-    // 마우스 버튼을 누른 채로 움직이는 중이면 지나가는 칸도 계속 칠합니다.
-    if (isPainting) {
-      const valueToPaint = (e.buttons === 2) ? 0 : selectedTile; // 드래그 중에도 오른쪽 버튼이면 지우개
-      paintCell(cellX, cellY, valueToPaint);
+    if (isRectMode) {
+      // [신규] 사각형 채우기 모드 중에는 실제로 칠하지 않고, 미리보기만 계속 갱신합니다.
+      drawOverlay();
+    } else {
+      // 마우스 버튼을 누른 채로 움직이는 중이면 지나가는 칸도 계속 칠합니다.
+      if (isPainting) {
+        const valueToPaint = (e.buttons === 2) ? 0 : selectedTile; // 드래그 중에도 오른쪽 버튼이면 지우개
+        paintCell(cellX, cellY, valueToPaint);
+      }
+      drawOverlay(); // [신규] 평소에도 마우스가 있는 칸을 계속 강조 표시합니다.
+    }
+  });
+
+  // [신규] 마우스가 캔버스 바깥으로 나가면 강조 표시를 지워서, 엉뚱한 곳에 테두리가
+  // 남아있지 않도록 합니다.
+  canvas.addEventListener("mouseleave", () => {
+    hoverCell = null;
+    if (!isRectMode) {
+      drawOverlay();
     }
   });
 
   window.addEventListener("mouseup", () => {
-    isPainting = false; // 마우스 버튼을 떼면 드래그 칠하기 종료
+    if (isRectMode && rectStart && hoverCell) {
+      // [신규] 사각형 채우기를 실제로 확정하는 부분입니다.
+      // 시작점과 마지막 마우스 위치 사이의 모든 칸을 선택했던 값으로 채웁니다.
+      const x1 = Math.max(0, Math.min(rectStart.x, hoverCell.x));
+      const x2 = Math.min(cols - 1, Math.max(rectStart.x, hoverCell.x));
+      const y1 = Math.max(0, Math.min(rectStart.y, hoverCell.y));
+      const y2 = Math.min(rows - 1, Math.max(rectStart.y, hoverCell.y));
+
+      for (let y = y1; y <= y2; y++) {       // 사각형 범위의 모든 행에 대해
+        for (let x = x1; x <= x2; x++) {     // 사각형 범위의 모든 열에 대해
+          mapData[y][x] = rectPaintValue;    // 미리 정해둔 값으로 칸을 채움
+        }
+      }
+
+      drawMap(); // 채우기 결과를 화면에 반영
+    }
+
+    // 어떤 모드였든 마우스를 떼면 모든 그리기/채우기 동작을 종료합니다.
+    isPainting = false;
+    isRectMode = false;
+    rectStart = null;
+    drawOverlay(); // 사각형 미리보기를 지우고, 평소 강조 표시 상태로 되돌림
   });
 
   // 오른쪽 클릭 시 브라우저 기본 메뉴가 뜨는 것을 막습니다 (지우개 기능을 위해 필요).
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+  // ---------- 10-2. [신규] Ctrl + 마우스 휠로 확대/축소하는 기능 ----------
+  // 그냥 마우스 휠은 원래대로 화면을 위/아래로 스크롤하게 두고,
+  // Ctrl 키를 누른 채로 휠을 굴렸을 때만 확대/축소가 되도록 합니다.
+  canvasWrap.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey) return; // Ctrl을 안 눌렀으면 이 함수는 아무 일도 하지 않고 평소처럼 스크롤되게 둠
+    e.preventDefault(); // 브라우저 자체의 화면 확대/축소(Ctrl+휠)가 대신 실행되지 않도록 막음
+
+    // 확대/축소를 하기 전에, 지금 마우스가 "맵의 어느 칸"을 가리키고 있었는지 미리 계산해둡니다.
+    // 이 위치를 기억해뒀다가, 확대/축소 후에도 같은 칸이 마우스 아래에 그대로 있도록 보정할 것입니다.
+    const rect = canvasWrap.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left + canvasWrap.scrollLeft; // 캔버스 기준 절대 x 픽셀 위치
+    const mouseY = e.clientY - rect.top + canvasWrap.scrollTop;   // 캔버스 기준 절대 y 픽셀 위치
+    const mapPointX = mouseX / cellSize; // 픽셀 위치를 "칸" 단위로 변환
+    const mapPointY = mouseY / cellSize;
+
+    // 휠을 위로 굴리면(deltaY가 음수) 확대, 아래로 굴리면 축소되도록 칸 크기를 바꿉니다.
+    //
+    // [버그 수정] 원래는 그냥 "cellSize * 1.15"를 반올림했는데, 칸 크기가 3처럼 작을 때는
+    // 3 × 1.15 = 3.45 → 반올림하면 다시 3
+    // 3 ÷ 1.15 = 2.6  → 반올림하면 이것도 3
+    // 이렇게 어느 방향으로 휠을 굴려도 계산 결과가 원래 값 그대로 되돌아와서,
+    // 화면 배율이 그 자리에 딱 갇혀버리는 문제가 있었습니다.
+    // 그래서 "배율을 곱한 값"과 "최소 1px는 반드시 바뀐 값" 중에서
+    // 확대할 때는 더 큰 쪽을, 축소할 때는 더 작은 쪽을 선택해서 항상 값이 바뀌도록 고쳤습니다.
+    let nextCellSize;
+    if (e.deltaY < 0) {
+      // 확대: 배율을 곱한 값과 "현재값+1" 중 더 큰 값을 선택 (최소 1px는 반드시 커지게 함)
+      nextCellSize = Math.max(cellSize + 1, Math.round(cellSize * 1.15));
+    } else {
+      // 축소: 배율을 나눈 값과 "현재값-1" 중 더 작은 값을 선택 (최소 1px는 반드시 작아지게 함)
+      nextCellSize = Math.min(cellSize - 1, Math.round(cellSize / 1.15));
+    }
+    cellSize = Math.max(2, Math.min(60, nextCellSize)); // 그래도 2~60px 범위는 벗어나지 않도록 제한
+    document.getElementById("inputCellSize").value = cellSize; // 사이드바 숫자도 함께 맞춰줌
+
+    resizeCanvasToMap();
+    drawMap();
+
+    // 확대/축소가 끝난 뒤, 아까 계산해둔 "맵 위의 그 지점"이 여전히 마우스 커서 바로 아래에
+    // 오도록 스크롤 위치를 다시 계산해서 보정합니다. (이렇게 안 하면 확대할 때마다 화면이
+    // 엉뚱한 곳으로 튀어서 지금 보던 위치를 잃어버리게 됩니다)
+    canvasWrap.scrollLeft = mapPointX * cellSize - (e.clientX - rect.left);
+    canvasWrap.scrollTop = mapPointY * cellSize - (e.clientY - rect.top);
+  }, { passive: false }); // preventDefault를 실제로 쓸 것이므로 passive를 false로 지정해야 합니다.
+
+  // ---------- 10-1. [신규] 키보드 단축키 처리 ----------
+  window.addEventListener("keydown", (e) => {
+    // 지금 사용자가 숫자 입력칸이나 텍스트 영역에 글자를 입력하고 있는 중인지 확인합니다.
+    // 입력 중일 때 숫자 단축키가 작동하면 타이핑을 방해하게 되므로 이 경우는 걸러줍니다.
+    const activeTag = document.activeElement.tagName;
+    const isTyping = (activeTag === "INPUT" || activeTag === "TEXTAREA");
+
+    // Ctrl(윈도우) 또는 Cmd(맥) + Z 키 = 되돌리기
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+      e.preventDefault(); // 브라우저 자체의 되돌리기 동작과 겹치지 않도록 막음
+      undo();
+      return;
+    }
+
+    // Ctrl + Y, 또는 Ctrl + Shift + Z = 다시하기 (둘 다 널리 쓰이는 단축키라 함께 지원)
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    if (isTyping) return; // 입력창에 타이핑 중이면 아래 타일 단축키/방향키는 무시합니다.
+
+    // [신규] 방향키를 누르면 마우스로 스크롤바를 끌지 않아도 화면이 이동합니다.
+    // 한 번 누를 때 3칸 크기만큼 이동하도록 해서, 칸 크기(cellSize)가 커도 작아도 자연스럽게 움직입니다.
+    const panStep = cellSize * 3;
+    if (e.key === "ArrowLeft") { canvasWrap.scrollLeft -= panStep; e.preventDefault(); return; }
+    if (e.key === "ArrowRight") { canvasWrap.scrollLeft += panStep; e.preventDefault(); return; }
+    if (e.key === "ArrowUp") { canvasWrap.scrollTop -= panStep; e.preventDefault(); return; }
+    if (e.key === "ArrowDown") { canvasWrap.scrollTop += panStep; e.preventDefault(); return; }
+
+    // 숫자 0~5 키를 누르면 그 번호에 해당하는 타일이 바로 선택됩니다.
+    if (e.key >= "0" && e.key <= "5") {
+      const tile = TILE_TYPES.find(t => t.value === parseInt(e.key));
+      if (tile) {
+        selectedTile = tile.value;
+        statusSelected.textContent = "선택된 타일: " + tile.name;
+        buildPalette(); // 팔레트에서도 선택 테두리가 바뀌도록 새로고침
+
+        // [신규] 강조 보기 모드 중이면 타일을 바꿀 때마다 지도를 새로 그려서 강조 표시를 갱신합니다.
+        if (highlightMode) drawMap();
+      }
+    }
+  });
+
+  // [신규] 되돌리기/다시하기 버튼을 마우스로 눌렀을 때도 동작하도록 연결합니다.
+  btnUndo.addEventListener("click", undo);
+  btnRedo.addEventListener("click", redo);
+
   // ---------- 11. "이 크기로 새로 만들기" 버튼 ----------
   document.getElementById("btnCreate").addEventListener("click", () => {
     const w = parseInt(document.getElementById("inputWidth").value) || 10; // 입력값을 숫자로 변환, 비어있으면 10
     const h = parseInt(document.getElementById("inputHeight").value) || 10;
+
+    // [신규] 지금 맵이 이미 존재한다면(처음 실행이 아니라면), 새로 만들기 전 상태를
+    // 되돌리기 기록에 남겨서 실수로 새로 만들기를 눌렀을 때도 복구할 수 있게 합니다.
+    if (rows > 0 && cols > 0) {
+      snapshotForUndo();
+    }
 
     cols = w;
     rows = h;
@@ -418,6 +1170,48 @@
     cellSize = parseInt(document.getElementById("inputCellSize").value) || 24;
     resizeCanvasToMap();
     drawMap();
+  });
+
+  // ---------- 12-1. [신규] "화면에 맞추기" 버튼 ----------
+  // 맵 전체가 스크롤 없이 한 화면에 다 보이도록, 칸 크기를 자동으로 계산해줍니다.
+  document.getElementById("btnFit").addEventListener("click", () => {
+    // canvasWrap이 실제로 화면에서 차지하고 있는 크기(스크롤바 제외 순수 보이는 영역)를 가져옵니다.
+    const availW = canvasWrap.clientWidth;
+    const availH = canvasWrap.clientHeight;
+
+    // 가로 기준으로 꽉 채우는 칸 크기, 세로 기준으로 꽉 채우는 칸 크기를 각각 계산한 뒤,
+    // 둘 중 더 작은 값을 선택해야 맵 전체가 화면 안에 다 들어옵니다.
+    const fitW = Math.floor(availW / cols);
+    const fitH = Math.floor(availH / rows);
+    cellSize = Math.max(2, Math.min(fitW, fitH)); // 너무 작아지지 않도록 최소 2px는 보장합니다.
+
+    document.getElementById("inputCellSize").value = cellSize; // 입력창 숫자도 맞춰줌
+    resizeCanvasToMap();
+    drawMap();
+  });
+
+  // ---------- 12-2. [신규] "좌표로 이동" 버튼 ----------
+  document.getElementById("btnGoTo").addEventListener("click", () => {
+    const gx = parseInt(document.getElementById("gotoX").value); // 입력한 x 좌표
+    const gy = parseInt(document.getElementById("gotoY").value); // 입력한 y 좌표
+
+    if (isNaN(gx) || isNaN(gy)) { // 숫자가 아닌 값이 입력되었으면
+      alert("X, Y 좌표를 숫자로 입력해주세요.");
+      return;
+    }
+
+    // 입력한 좌표의 칸이 화면 정중앙에 오도록 스크롤 위치를 계산합니다.
+    const targetScrollLeft = gx * cellSize - canvasWrap.clientWidth / 2;
+    const targetScrollTop = gy * cellSize - canvasWrap.clientHeight / 2;
+
+    canvasWrap.scrollLeft = Math.max(0, targetScrollLeft);
+    canvasWrap.scrollTop = Math.max(0, targetScrollTop);
+  });
+
+  // ---------- 12-3. [신규] "선택한 타일만 강조해서 보기" 체크박스 ----------
+  checkHighlight.addEventListener("change", () => {
+    highlightMode = checkHighlight.checked; // 체크박스 상태를 그대로 강조 모드 여부로 반영
+    drawMap(); // 강조 여부가 바뀌었으니 지도를 새로운 색으로 다시 그림
   });
 
   // ---------- 13. 배열을 텍스트로 바꿔주는 함수 (내보내기용) ----------
@@ -485,6 +1279,11 @@
     try {
       const parsed = parseMapText(raw); // 문자열을 실제 배열로 변환 시도
 
+      // [신규] 불러오기로 지금 맵을 덮어쓰기 전에, 혹시 몰라 되돌리기 기록을 남겨둡니다.
+      if (rows > 0 && cols > 0) {
+        snapshotForUndo();
+      }
+
       mapData = parsed;              // 불러온 데이터를 현재 맵으로 사용
       rows = mapData.length;         // 행 개수 = 세로 칸 수
       cols = mapData[0].length;      // 첫 번째 행의 길이 = 가로 칸 수
@@ -513,6 +1312,7 @@
   drawMap();
   statusSize.textContent = `크기: 가로 ${cols} x 세로 ${rows}`;
   statusSelected.textContent = "선택된 타일: " + TILE_TYPES.find(t => t.value === selectedTile).name;
+  updateUndoRedoButtons(); // [신규] 처음에는 되돌리기/다시하기 기록이 없으므로 버튼을 비활성화 상태로 시작
 </script>
 
 </body>
